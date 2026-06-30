@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cook M&A — 2026 Commission Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Plus Jakarta Sans',sans-serif;background:#F5F5F5;color:#22252A;min-height:100vh;font-size:14px}
+
+/* ── Splash / auth screen ── */
+#splash-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.splash-card{background:#fff;border-radius:16px;border:0.5px solid #e0e0e0;box-shadow:0 4px 24px rgba(0,0,0,0.08);padding:40px 44px;width:100%;max-width:420px;text-align:center}
+.splash-logo-box{width:56px;height:56px;background:#252A36;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto 20px}
+.splash-logo-box svg{fill:#009775;width:28px;height:28px}
+.splash-firm{font-size:17px;font-weight:700;color:#252A36;margin-bottom:4px}
+.splash-sub{font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:28px}
+.splash-status{font-size:13px;color:#888;margin-bottom:20px;min-height:20px;line-height:1.5}
+.splash-btn{width:100%;padding:12px;background:#252A36;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:background .15s;display:flex;align-items:center;justify-content:center;gap:10px}
+.splash-btn:hover{background:#00463F}
+.splash-btn:disabled{background:#ccc;cursor:not-allowed}
+.splash-btn svg{fill:#fff;width:18px;height:18px}
+.splash-error{margin-top:14px;font-size:12px;color:#A32D2D;background:#fddcdc;border-radius:7px;padding:9px 12px;display:none;text-align:left;font-weight:600;line-height:1.5}
+
+/* ── Login (PIN) screen ── */
+#login-screen{min-height:100vh;display:none;align-items:center;justify-content:center;padding:24px}
+.login-card{background:#fff;border-radius:16px;border:0.5px solid #e0e0e0;box-shadow:0 4px 24px rgba(0,0,0,0.08);padding:40px 44px;width:100%;max-width:400px}
+.login-logo{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.login-logo-box{width:44px;height:44px;background:#252A36;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.login-logo-box svg{fill:#009775;width:24px;height:24px}
+.login-firm{font-size:15px;font-weight:700;color:#252A36}
+.login-sub{font-size:11px;color:#aaa;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.login-title{font-size:20px;font-weight:700;color:#252A36;margin-bottom:6px}
+.login-desc{font-size:13px;color:#888;margin-bottom:24px;line-height:1.5}
+.login-label{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px}
+.login-input{width:100%;padding:11px 14px;font-size:15px;border:0.5px solid #ddd;border-radius:9px;background:#fff;color:#22252A;font-family:'Plus Jakarta Sans',sans-serif;letter-spacing:.1em;outline:none;transition:border-color .15s}
+.login-input:focus{border-color:#009775;box-shadow:0 0 0 3px rgba(0,151,117,0.09)}
+.login-btn{width:100%;margin-top:16px;padding:12px;background:#252A36;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:background .15s}
+.login-btn:hover{background:#00463F}
+.login-error{margin-top:12px;font-size:12px;color:#A32D2D;background:#fddcdc;border-radius:7px;padding:9px 12px;display:none;text-align:center;font-weight:600}
+
+/* ── App shell ── */
+#app-screen{display:none;max-width:1100px;margin:0 auto;padding:24px 20px 60px}
+.header{background:#252A36;border-radius:12px;padding:18px 24px;display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.header-left{display:flex;align-items:center;gap:14px}
+.logo-box{width:38px;height:38px;background:#009775;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-box svg{fill:#fff;width:20px;height:20px}
+.firm-name{font-size:15px;font-weight:700;color:#fff}
+.firm-sub{font-size:10px;color:rgba(255,255,255,0.45);letter-spacing:.06em;text-transform:uppercase;margin-top:1px}
+.header-right{display:flex;align-items:center;gap:10px}
+.user-pill{background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.8);font-size:12px;font-weight:600;padding:5px 12px;border-radius:20px;border:1px solid rgba(255,255,255,0.15)}
+.sync-status{font-size:11px;color:rgba(255,255,255,0.5);display:flex;align-items:center;gap:5px}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:#009775;flex-shrink:0}
+.sync-dot.saving{background:#FAC775;animation:pulse 1s infinite}
+.sync-dot.error{background:#A32D2D}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.logout-btn{background:transparent;border:0.5px solid rgba(255,255,255,0.2);color:rgba(255,255,255,0.6);font-size:11px;font-weight:600;padding:5px 11px;border-radius:20px;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .15s}
+.logout-btn:hover{background:rgba(255,255,255,0.1);color:#fff}
+
+/* Tabs */
+.tab-bar{display:flex;gap:4px;background:#fff;border:0.5px solid #e0e0e0;border-radius:10px;padding:4px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
+.tab{flex:1;padding:9px 14px;font-size:13px;font-weight:600;color:#888;border:none;background:transparent;border-radius:7px;cursor:pointer;transition:all .15s;font-family:'Plus Jakarta Sans',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px}
+.tab:hover{color:#252A36}
+.tab.active{background:#252A36;color:#fff}
+.tab svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.section{display:none}.section.active{display:block}
+
+/* Cards */
+.cards-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:20px}
+.metric{background:#fff;border-radius:10px;padding:16px 18px;border:0.5px solid #e8e8e8;box-shadow:0 1px 2px rgba(0,0,0,0.04);border-top:3px solid #009775}
+.metric-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.05em;font-weight:600;margin-bottom:6px}
+.metric-val{font-size:26px;font-weight:700;color:#252A36;line-height:1}
+.metric-sub{font-size:11px;color:#aaa;margin-top:4px}
+
+/* Originator view */
+.my-stats{background:#fff;border-radius:12px;border:0.5px solid #e8e8e8;padding:24px 28px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
+.my-stats-header{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+.my-name{font-size:18px;font-weight:700;color:#252A36}
+.my-title{font-size:12px;color:#aaa;margin-top:2px}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:20px}
+.stat-box{background:#f7f7f5;border-radius:9px;padding:14px 16px}
+.stat-box-label{font-size:10px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.stat-box-val{font-size:22px;font-weight:700;color:#252A36}
+.stat-box-sub{font-size:11px;color:#888;margin-top:3px}
+.next-level-bar-wrap{background:#ececec;border-radius:20px;height:8px;overflow:hidden;margin:10px 0 6px}
+.next-level-bar{height:100%;border-radius:20px;transition:width .5s}
+.next-level-labels{display:flex;justify-content:space-between;font-size:11px;color:#aaa}
+
+/* Tables */
+.table-wrap{background:#fff;border-radius:10px;border:0.5px solid #e8e8e8;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,0.04);margin-bottom:20px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:600;font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:#aaa;padding:11px 14px;background:#fafafa;border-bottom:0.5px solid #ececec}
+td{padding:11px 14px;border-bottom:0.5px solid #f0f0f0;color:#22252A;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafef9}
+
+/* Badges */
+.badge{display:inline-flex;align-items:center;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;letter-spacing:.02em}
+.badge-basic{background:#ddeeff;color:#185FA5}
+.badge-medium{background:#d4f0e4;color:#0F6E56}
+.badge-premium{background:#e6e4f9;color:#3C3489}
+.badge-maximum{background:#fde8c8;color:#854F0B}
+.badge-supermax{background:#fddcdc;color:#A32D2D}
+.pip-warn{font-size:10px;color:#A32D2D;font-weight:600;margin-top:3px}
+.avatar{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;flex-shrink:0}
+.progress-wrap{background:#f0f0f0;border-radius:20px;height:5px;overflow:hidden;margin-bottom:3px;min-width:100px}
+.progress-fill{height:100%;border-radius:20px}
+.progress-labels{display:flex;justify-content:space-between;font-size:10px;color:#aaa}
+
+/* Data entry */
+.panel{background:#fff;border-radius:10px;border:0.5px solid #e8e8e8;padding:20px;margin-bottom:14px;box-shadow:0 1px 2px rgba(0,0,0,0.04)}
+.panel-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.panel-title{font-size:14px;font-weight:700;color:#252A36;display:flex;align-items:center;gap:8px}
+.avatar-sm{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0}
+.tip-bar{background:#f0faf5;border:0.5px solid #c2e8d4;border-radius:8px;padding:10px 14px;font-size:12px;color:#0F6E56;margin-bottom:16px;line-height:1.5}
+input[type=text],input[type=number],input[type=password],select{padding:7px 10px;font-size:13px;border:0.5px solid #ddd;border-radius:7px;background:#fff;color:#22252A;font-family:'Plus Jakarta Sans',sans-serif;transition:border-color .15s;outline:none}
+input[type=text]:focus,input[type=number]:focus,select:focus{border-color:#009775;box-shadow:0 0 0 3px rgba(0,151,117,0.08)}
+input[type=text]{width:100%}
+input[type=number]{width:130px}
+.form-grid{display:grid;grid-template-columns:1fr 140px 160px 120px 40px;gap:8px;align-items:center;margin-bottom:6px}
+.form-grid-header{display:grid;grid-template-columns:1fr 140px 160px 120px 40px;gap:8px;margin-bottom:4px;font-size:10px;font-weight:600;color:#aaa;letter-spacing:.06em;text-transform:uppercase;padding:0 2px}
+.name-row{display:grid;grid-template-columns:260px 1fr;gap:10px;align-items:center;margin-bottom:14px}
+.name-row label{font-size:11px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px}
+.btn-primary{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:#252A36;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:background .15s}
+.btn-primary:hover{background:#00463F}
+.btn-secondary{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;background:transparent;color:#888;border:0.5px dashed #ccc;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Plus Jakarta Sans',sans-serif;transition:all .15s;margin-top:6px}
+.btn-secondary:hover{border-color:#009775;color:#009775}
+.btn-del{background:none;border:none;color:#ccc;cursor:pointer;padding:4px 7px;border-radius:6px;font-size:16px;line-height:1;transition:all .15s}
+.btn-del:hover{color:#A32D2D;background:#fddcdc}
+.btn-remove-person{background:none;border:0.5px solid #eee;color:#bbb;cursor:pointer;padding:5px 9px;border-radius:6px;font-size:12px;font-weight:600;font-family:'Plus Jakarta Sans',sans-serif;transition:all .15s;display:flex;align-items:center;gap:4px}
+.btn-remove-person:hover{border-color:#A32D2D;color:#A32D2D;background:#fff8f8}
+.section-title{font-size:14px;font-weight:700;color:#252A36;margin-bottom:12px}
+.divider{border:none;border-top:0.5px solid #ececec;margin:18px 0}
+.plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:18px}
+.level-card{border-radius:9px;padding:14px 16px;border:0.5px solid transparent}
+.level-card.basic{background:#ddeeff;border-color:#b5d4f4}
+.level-card.medium{background:#d4f0e4;border-color:#9FE1CB}
+.level-card.premium{background:#e6e4f9;border-color:#AFA9EC}
+.level-card.maximum{background:#fde8c8;border-color:#FAC775}
+.level-card.supermax{background:#fddcdc;border-color:#F7C1C1}
+.level-name{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px}
+.level-name.basic{color:#185FA5}.level-name.medium{color:#0F6E56}.level-name.premium{color:#3C3489}.level-name.maximum{color:#854F0B}.level-name.supermax{color:#A32D2D}
+.level-rate{font-size:28px;font-weight:700;line-height:1;margin-bottom:4px}
+.level-rate.basic{color:#185FA5}.level-rate.medium{color:#0F6E56}.level-rate.premium{color:#3C3489}.level-rate.maximum{color:#854F0B}.level-rate.supermax{color:#A32D2D}
+.level-range{font-size:11px;color:#888;margin-top:2px}
+.rules-table{width:100%;border-collapse:collapse;font-size:13px}
+.rules-table td{padding:10px 0;border-bottom:0.5px solid #f0f0f0;vertical-align:top}
+.rules-table td:first-child{font-weight:600;color:#252A36;width:180px;padding-right:20px}
+.rules-table tr:last-child td{border-bottom:none}
+.footer-note{font-size:11px;color:#aaa;margin-top:16px;padding-top:12px;border-top:0.5px solid #ececec;line-height:1.6}
+.checkbox-wrap{display:flex;align-items:center;justify-content:center}
+input[type=checkbox]{width:15px;height:15px;accent-color:#009775;cursor:pointer}
+.pin-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px}
+.pin-table th{text-align:left;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:#aaa;padding:9px 12px;background:#fafafa;border-bottom:0.5px solid #ececec}
+.pin-table td{padding:9px 12px;border-bottom:0.5px solid #f0f0f0;vertical-align:middle}
+.pin-table tr:last-child td{border-bottom:none}
+.pin-input{width:120px;letter-spacing:.08em;font-size:13px;padding:6px 9px}
+.pin-badge{background:#f0faf5;color:#0F6E56;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;letter-spacing:.08em;font-family:monospace}
+.save-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+</style>
+</head>
+<body>
+
+<!-- ══ SPLASH / MICROSOFT AUTH ══ -->
+<div id="splash-screen">
+  <div class="splash-card">
+    <div class="splash-logo-box">
+      <svg viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1"/><rect x="11" y="2" width="7" height="7" rx="1"/><rect x="2" y="11" width="7" height="7" rx="1"/><rect x="11" y="11" width="7" height="7" rx="1"/></svg>
+    </div>
+    <div class="splash-firm">Cook M&amp;A Advisory Services</div>
+    <div class="splash-sub">2026 Commission Tracker</div>
+    <div class="splash-status" id="splash-status">Sign in with your Cook M&amp;A Microsoft account to continue.</div>
+    <button class="splash-btn" id="splash-btn" onclick="msalSignIn()">
+      <svg viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+      Sign in with Microsoft
+    </button>
+    <div class="splash-error" id="splash-error"></div>
+  </div>
+</div>
+
+<!-- ══ PIN LOGIN ══ -->
+<div id="login-screen" style="display:none;min-height:100vh;align-items:center;justify-content:center;padding:24px">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-box"><svg viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1"/><rect x="11" y="2" width="7" height="7" rx="1"/><rect x="2" y="11" width="7" height="7" rx="1"/><rect x="11" y="11" width="7" height="7" rx="1"/></svg></div>
+      <div><div class="login-firm">Cook M&amp;A Advisory Services</div><div class="login-sub">2026 Commission Tracker</div></div>
+    </div>
+    <div class="login-title">Enter your PIN</div>
+    <div class="login-desc">Enter the PIN assigned to you by your manager.</div>
+    <label class="login-label" for="pin-input">PIN</label>
+    <input class="login-input" type="password" id="pin-input" placeholder="••••••" maxlength="12" autocomplete="off"
+      oninput="clearLoginError()" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">Continue</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="app-screen" style="display:none">
+  <div class="header">
+    <div class="header-left">
+      <div class="logo-box"><svg viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1"/><rect x="11" y="2" width="7" height="7" rx="1"/><rect x="2" y="11" width="7" height="7" rx="1"/><rect x="11" y="11" width="7" height="7" rx="1"/></svg></div>
+      <div><div class="firm-name">Cook M&amp;A Advisory Services</div><div class="firm-sub">2026 Commission Tracker</div></div>
+    </div>
+    <div class="header-right">
+      <div class="sync-status"><div class="sync-dot" id="sync-dot"></div><span id="sync-label">Synced</span></div>
+      <div class="user-pill" id="user-pill">—</div>
+      <button class="logout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <!-- Manager tabs -->
+  <div class="tab-bar" id="mgr-tabs" style="display:none">
+    <button class="tab active" onclick="showTab('dashboard',this)"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>Dashboard</button>
+    <button class="tab" onclick="showTab('data',this)"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Enter Data</button>
+    <button class="tab" onclick="showTab('pins',this)"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Manage PINs</button>
+    <button class="tab" onclick="showTab('plan',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Plan Reference</button>
+  </div>
+
+  <!-- Originator tabs -->
+  <div class="tab-bar" id="orig-tabs" style="display:none">
+    <button class="tab active" onclick="showTab('my-view',this)"><svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>My Commission</button>
+    <button class="tab" onclick="showTab('plan',this)"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>Plan Reference</button>
+  </div>
+
+  <div style="max-width:1100px;margin:0 auto;padding:0 20px 60px">
+
+    <!-- Dashboard -->
+    <div id="tab-dashboard" class="section active">
+      <div id="dash-metrics" class="cards-grid"></div>
+      <div class="table-wrap"><table><thead><tr><th>Originator</th><th>Attributable Revenue (T12M)</th><th>Level</th><th>Rate</th><th>Est. Commission / $100k</th><th style="min-width:160px">Progress to Next Level</th></tr></thead><tbody id="dash-tbody"></tbody></table></div>
+      <div class="footer-note">Attributable Revenue = deal fees + 35% of paid retainers (50/50 split applied first if co-originated). Levels based on trailing 12-month rolling window. Below $300k triggers automatic PIP per 2026 Commission Plan.</div>
+    </div>
+
+    <!-- Enter Data -->
+    <div id="tab-data" class="section">
+      <div class="save-bar">
+        <button class="btn-primary" onclick="saveToSharePoint()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Save to SharePoint
+        </button>
+        <button class="btn-primary" style="background:#00463F" onclick="exportCSV()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+        </button>
+        <button class="btn-primary" style="background:#185FA5" onclick="document.getElementById('csv-file-input').click()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Import CSV
+        </button>
+        <input type="file" id="csv-file-input" accept=".csv" style="display:none" onchange="handleCSVImport(this.files[0])">
+      </div>
+      <div class="tip-bar">Changes save to SharePoint and are immediately visible to everyone. Enter each originator's trailing 12-month deals. Retainer credit = 35% of paid amount; check "Split?" if shared 50/50 with a co-originator.</div>
+      <div class="tip-bar" style="background:#eef5ff;border-color:#bcd9f7;color:#185FA5">
+        <strong>CSV import format:</strong> columns should be <code>Name, Description, Deal Fees, Retainer Paid, Split Retainer</code> (Split Retainer = Yes/No). One row per deal — repeat the same Name for multiple deals under one originator, or leave Name blank on follow-up rows for the same person (matches your Export CSV format). This <strong>replaces</strong> all current data after you confirm.
+      </div>
+      <div id="people-list"></div>
+      <button class="btn-secondary" onclick="addPerson()">+ Add originator</button>
+    </div>
+
+    <!-- Manage PINs -->
+    <div id="tab-pins" class="section">
+      <div class="section-title">Manager PIN</div>
+      <div class="table-wrap" style="margin-bottom:20px">
+        <table class="pin-table"><thead><tr><th>Role</th><th>Current PIN</th><th>New PIN</th><th></th></tr></thead>
+        <tbody><tr>
+          <td><strong>Manager</strong> — full access</td>
+          <td><span class="pin-badge" id="mgr-pin-display">••••</span></td>
+          <td><input class="pin-input" type="text" id="new-mgr-pin" placeholder="New PIN" maxlength="12" autocomplete="off"></td>
+          <td><button class="btn-primary" style="padding:6px 12px;font-size:12px" onclick="updateManagerPin()">Update</button></td>
+        </tr></tbody></table>
+      </div>
+      <div class="section-title">Originator PINs</div>
+      <div class="tip-bar" style="margin-bottom:14px">Share each originator's PIN with them directly — they will only see their own data when they sign in.</div>
+      <div class="table-wrap"><table class="pin-table"><thead><tr><th>Originator</th><th>PIN</th><th>New PIN</th><th></th></tr></thead><tbody id="pin-tbody"></tbody></table></div>
+      <div class="footer-note">PINs are stored in SharePoint alongside deal data. Do not share the manager PIN.</div>
+    </div>
+
+    <!-- Originator view -->
+    <div id="tab-my-view" class="section"><div id="my-view-content"></div></div>
+
+    <!-- Plan Reference -->
+    <div id="tab-plan" class="section">
+      <div class="section-title">Success fee levels</div>
+      <div class="plan-grid">
+        <div class="level-card basic"><div class="level-name basic">Basic</div><div class="level-rate basic">5%</div><div class="level-range">&lt; $300,000</div></div>
+        <div class="level-card medium"><div class="level-name medium">Medium</div><div class="level-rate medium">10%</div><div class="level-range">$300k – $750k</div></div>
+        <div class="level-card premium"><div class="level-name premium">Premium</div><div class="level-rate premium">15%</div><div class="level-range">$750k – $1.1M</div></div>
+        <div class="level-card maximum"><div class="level-name maximum">Maximum</div><div class="level-rate maximum">20%</div><div class="level-range">$1.1M – $1.75M</div></div>
+        <div class="level-card supermax"><div class="level-name supermax">Super Max</div><div class="level-rate supermax">30%</div><div class="level-range">&gt; $1,750,000</div></div>
+      </div>
+      <hr class="divider">
+      <div class="section-title">Key plan rules</div>
+      <table class="rules-table">
+        <tr><td>Retainer credit</td><td>35% of paid retainer amount counts toward Attributable Revenue. If split with a co-originator: each takes 50%, then 35% credit applies to each share.</td></tr>
+        <tr><td>Level calculation</td><td>Rolling trailing 12 months — no calendar-year reset. A deal drops off the calculation 12 months + 1 day after it closed.</td></tr>
+        <tr><td>Split deal credit</td><td>Deal fee credit assigned based on amount attributable to each originator.</td></tr>
+        <tr><td>PIP threshold</td><td>Below $300,000 trailing 12-month Attributable Revenue triggers an automatic Performance Improvement Plan.</td></tr>
+        <tr><td>Retainer timing</td><td>Calculated on the 1st of the month using the previous month's paid retainers.</td></tr>
+        <tr><td>CookConnect deals</td><td>Fees paid on split commission; Attributable Revenue credit based on deal fees paid to the originator.</td></tr>
+      </table>
+      <div class="footer-note">Confidential — Cook M&amp;A Advisory Services &bull; 2026 Commission Plan</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ══════════════════════════════════════
+   CONFIGURATION — update these values
+══════════════════════════════════════ */
+const CONFIG = {
+  clientId:   '364a3d5f-4ec9-45a6-b519-b544948d896d',
+  tenantId:   '143cd7be-cb78-44ce-ac89-7eaf1d077bfa',
+  siteHost:   'cookma.sharepoint.com',
+  sitePath:   '/Administrative',
+  driveLib:   'Administrative',          // document library name
+  dataFile:   'commission_tracker_2026.json'  // file saved in that library
+};
+
+/* ══════════════════════════════════════
+   MSAL SETUP
+══════════════════════════════════════ */
+const msalConfig = {
+  auth: {
+    clientId: CONFIG.clientId,
+    authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
+    redirectUri: window.location.href.split('?')[0].split('#')[0]
+  },
+  cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
+};
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+const graphScopes = ['Files.ReadWrite', 'Sites.ReadWrite.All'];
+
+let accessToken = null;
+let siteId = null;
+let driveId = null;
+let fileId = null;   // Graph item ID of the JSON file once found/created
+
+/* ══════════════════════════════════════
+   COMMISSION LOGIC
+══════════════════════════════════════ */
+const LEVELS = [
+  {name:'Super Max',cls:'supermax',min:1750000,max:Infinity,rate:0.30,badge:'badge-supermax'},
+  {name:'Maximum',  cls:'maximum', min:1100000,max:1750000, rate:0.20,badge:'badge-maximum'},
+  {name:'Premium',  cls:'premium', min:750000, max:1100000, rate:0.15,badge:'badge-premium'},
+  {name:'Medium',   cls:'medium',  min:300000, max:750000,  rate:0.10,badge:'badge-medium'},
+  {name:'Basic',    cls:'basic',   min:0,      max:300000,  rate:0.05,badge:'badge-basic'},
+];
+const AVATAR_COLORS = ['#252A36','#00463F','#009775','#22252A','#185FA5','#3C3489','#854F0B'];
+const BAR_COLORS = {supermax:'#A32D2D',maximum:'#854F0B',premium:'#3C3489',medium:'#0F6E56',basic:'#185FA5'};
+const DEFAULT_MGR_PIN = 'admin2026';
+
+let people = [];
+let nextId = 1;
+let managerPin = DEFAULT_MGR_PIN;
+let currentUser = null;
+
+function getLevel(ar){ return LEVELS.find(l=>ar>=l.min&&ar<l.max)||LEVELS[4]; }
+function fmt(n){ return '$'+Math.round(n).toLocaleString(); }
+function pct(n){ return Math.round(n*100)+'%'; }
+function initials(name){ return name.trim().split(' ').filter(Boolean).map(w=>w[0]).join('').toUpperCase().slice(0,2)||'??'; }
+function avatarColor(i){ return AVATAR_COLORS[i%AVATAR_COLORS.length]; }
+function calcAR(p){
+  return p.deals.reduce((sum,d)=>{
+    let ret = parseFloat(d.retainer)||0;
+    if(d.retainerSplit) ret=ret/2;
+    return sum+(ret*0.35)+(parseFloat(d.fees)||0);
+  },0);
+}
+
+/* ══════════════════════════════════════
+   SYNC STATUS UI
+══════════════════════════════════════ */
+function setSyncStatus(state, msg){
+  const dot = document.getElementById('sync-dot');
+  const lbl = document.getElementById('sync-label');
+  dot.className = 'sync-dot' + (state==='saving'?' saving':state==='error'?' error':'');
+  lbl.textContent = msg;
+}
+
+/* ══════════════════════════════════════
+   MICROSOFT AUTH
+══════════════════════════════════════ */
+async function msalSignIn(){
+  const btn = document.getElementById('splash-btn');
+  const status = document.getElementById('splash-status');
+  btn.disabled = true;
+  status.textContent = 'Signing in…';
+  try {
+    // Handle redirect response first
+    await msalInstance.initialize();
+    const redirectResult = await msalInstance.handleRedirectPromise();
+    let account = redirectResult ? redirectResult.account : msalInstance.getAllAccounts()[0];
+
+    if(!account){
+      // Trigger redirect login
+      await msalInstance.loginRedirect({ scopes: graphScopes });
+      return;
+    }
+    // Acquire token silently
+    const tokenResp = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account });
+    accessToken = tokenResp.accessToken;
+    status.textContent = 'Loading data from SharePoint…';
+    await resolveSharePointIds();
+    await loadFromSharePoint();
+    showLoginScreen();
+  } catch(e) {
+    if(e.name === 'InteractionRequiredAuthError'){
+      await msalInstance.loginRedirect({ scopes: graphScopes });
+    } else {
+      showSplashError('Sign-in failed: '+e.message+'. Make sure the Redirect URI in Azure matches this page URL exactly: '+window.location.href.split('?')[0].split('#')[0]);
+      btn.disabled = false;
+      status.textContent = 'Sign in with your Cook M&A Microsoft account to continue.';
+    }
+  }
+}
+
+function showSplashError(msg){
+  const el = document.getElementById('splash-error');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+/* ══════════════════════════════════════
+   GRAPH API HELPERS
+══════════════════════════════════════ */
+async function graphRequest(method, url, body){
+  const opts = {
+    method,
+    headers: { 'Authorization': 'Bearer '+accessToken, 'Content-Type': 'application/json' }
+  };
+  if(body !== undefined) opts.body = JSON.stringify(body);
+  const resp = await fetch('https://graph.microsoft.com/v1.0'+url, opts);
+  if(!resp.ok){
+    const err = await resp.text();
+    throw new Error(`Graph API ${method} ${url} → ${resp.status}: ${err}`);
+  }
+  if(resp.status === 204) return null;
+  return resp.json();
+}
+
+async function graphUploadText(url, text){
+  const resp = await fetch('https://graph.microsoft.com/v1.0'+url, {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bearer '+accessToken, 'Content-Type': 'application/octet-stream' },
+    body: new TextEncoder().encode(text)
+  });
+  if(!resp.ok) throw new Error('Upload failed: '+resp.status);
+  return resp.json();
+}
+
+/* ══════════════════════════════════════
+   RESOLVE SITE + DRIVE IDs
+══════════════════════════════════════ */
+async function resolveSharePointIds(){
+  // Get site ID
+  const siteData = await graphRequest('GET', `/sites/${CONFIG.siteHost}:${CONFIG.sitePath}`);
+  siteId = siteData.id;
+
+  // Get drive (document library)
+  const drivesData = await graphRequest('GET', `/sites/${siteId}/drives`);
+  const drive = drivesData.value.find(d => d.name === CONFIG.driveLib);
+  if(!drive) throw new Error(`Document library "${CONFIG.driveLib}" not found. Available: ${drivesData.value.map(d=>d.name).join(', ')}`);
+  driveId = drive.id;
+}
+
+/* ══════════════════════════════════════
+   LOAD FROM SHAREPOINT
+══════════════════════════════════════ */
+async function loadFromSharePoint(){
+  try {
+    // Try to find existing file
+    const items = await graphRequest('GET', `/drives/${driveId}/root/children`);
+    const existing = items.value.find(f => f.name === CONFIG.dataFile);
+
+    if(existing){
+      fileId = existing.id;
+      // Download content
+      const contentResp = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/content`, {
+        headers: { 'Authorization': 'Bearer '+accessToken }
+      });
+      const text = await contentResp.text();
+      const data = JSON.parse(text);
+      people = data.people || [];
+      nextId = data.nextId || people.length+1;
+      managerPin = data.managerPin || DEFAULT_MGR_PIN;
+      people.forEach(p=>{ if(!p.pin) p.pin=''; if(!p.deals) p.deals=[]; });
+    } else {
+      // First run — create the file with defaults
+      people = [{id:nextId++,name:'',pin:'',deals:[{desc:'',fees:0,retainer:0,retainerSplit:false}]}];
+      await saveToSharePoint(true);
+    }
+  } catch(e) {
+    console.warn('Load error:', e);
+    people = [{id:nextId++,name:'',pin:'',deals:[{desc:'',fees:0,retainer:0,retainerSplit:false}]}];
+  }
+}
+
+/* ══════════════════════════════════════
+   SAVE TO SHAREPOINT
+══════════════════════════════════════ */
+async function saveToSharePoint(silent){
+  setSyncStatus('saving','Saving…');
+  try {
+    const payload = JSON.stringify({people, nextId, managerPin}, null, 2);
+    const uploadUrl = `/drives/${driveId}/root:/${CONFIG.dataFile}:/content`;
+    const result = await graphUploadText(uploadUrl, payload);
+    fileId = result.id;
+    setSyncStatus('synced','Synced to SharePoint');
+    if(!silent){
+      const lbl = document.getElementById('sync-label');
+      setTimeout(()=>lbl.textContent='Synced',2500);
+    }
+  } catch(e) {
+    setSyncStatus('error','Save failed');
+    if(!silent) alert('Could not save to SharePoint: '+e.message);
+  }
+}
+
+/* ══════════════════════════════════════
+   PIN LOGIN
+══════════════════════════════════════ */
+function showLoginScreen(){
+  document.getElementById('splash-screen').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+}
+function doLogin(){
+  const entered = document.getElementById('pin-input').value.trim();
+  if(!entered){ showLoginError('Please enter your PIN.'); return; }
+  if(entered === managerPin){ currentUser='manager'; launchApp(); return; }
+  const match = people.find(p=>p.pin && p.pin===entered);
+  if(match){ currentUser=match.id; launchApp(); return; }
+  showLoginError('Incorrect PIN. Please try again.');
+}
+function showLoginError(msg){ const e=document.getElementById('login-error'); e.textContent=msg; e.style.display='block'; }
+function clearLoginError(){ document.getElementById('login-error').style.display='none'; }
+
+function launchApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app-screen').style.display='block';
+  document.getElementById('pin-input').value='';
+  setSyncStatus('synced','Synced');
+
+  if(currentUser==='manager'){
+    document.getElementById('user-pill').textContent='Manager';
+    document.getElementById('mgr-tabs').style.display='flex';
+    document.getElementById('orig-tabs').style.display='none';
+    showTab('dashboard', document.querySelector('#mgr-tabs .tab'));
+    renderDash(); renderData(); renderPins();
+  } else {
+    const p = people.find(x=>x.id===currentUser);
+    document.getElementById('user-pill').textContent = p?(p.name||'Originator'):'Originator';
+    document.getElementById('mgr-tabs').style.display='none';
+    document.getElementById('orig-tabs').style.display='flex';
+    showTab('my-view', document.querySelector('#orig-tabs .tab'));
+    renderMyView();
+  }
+}
+
+function doLogout(){
+  currentUser=null;
+  document.getElementById('app-screen').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+}
+
+/* ══════════════════════════════════════
+   TAB SWITCHER
+══════════════════════════════════════ */
+function showTab(tab, btn){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+tab).classList.add('active');
+  if(btn) btn.classList.add('active');
+}
+
+/* ══════════════════════════════════════
+   ORIGINATOR VIEW
+══════════════════════════════════════ */
+function renderMyView(){
+  const p = people.find(x=>x.id===currentUser);
+  const el = document.getElementById('my-view-content');
+  if(!p){ el.innerHTML='<div style="color:#aaa;padding:20px">No data found. Contact your manager.</div>'; return; }
+  const ar=calcAR(p), lv=getLevel(ar), idx=LEVELS.indexOf(lv), nextLv=LEVELS[idx-1];
+  let progress=100, nextLabel="You're at the top tier";
+  if(nextLv){ const span=nextLv.min-(lv.min||0); progress=Math.min(100,Math.round(((ar-(lv.min||0))/span)*100)); nextLabel=fmt(nextLv.min-ar)+' more to reach '+nextLv.name+' ('+pct(nextLv.rate)+')'; }
+  const pi=people.indexOf(p), name=p.name||'Originator', pip=ar<300000;
+  el.innerHTML=`
+    <div class="my-stats">
+      <div class="my-stats-header">
+        <div class="avatar" style="width:48px;height:48px;font-size:16px;background:${avatarColor(pi)}">${initials(name)}</div>
+        <div><div class="my-name">${name}</div><div class="my-title">Senior Originator &mdash; 2026 Commission Plan</div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="stat-box-label">Attributable Revenue (T12M)</div><div class="stat-box-val">${fmt(ar)}</div></div>
+        <div class="stat-box"><div class="stat-box-label">Current level</div><div class="stat-box-val"><span class="badge ${lv.badge}" style="font-size:14px;padding:5px 14px">${lv.name}</span></div></div>
+        <div class="stat-box"><div class="stat-box-label">Commission rate</div><div class="stat-box-val" style="color:${BAR_COLORS[lv.cls]}">${pct(lv.rate)}</div></div>
+        <div class="stat-box"><div class="stat-box-label">Est. commission / $100k deal</div><div class="stat-box-val">${fmt(lv.rate*100000)}</div></div>
+      </div>
+      ${pip?`<div style="background:#fddcdc;border-radius:8px;padding:10px 14px;font-size:12px;color:#A32D2D;font-weight:600;margin-bottom:14px">▲ Your Attributable Revenue is below $300,000 — you are currently in PIP territory. Contact your manager for details.</div>`:''}
+      <div style="font-size:12px;font-weight:600;color:#888;margin-bottom:4px">Progress to next level</div>
+      <div class="next-level-bar-wrap"><div class="next-level-bar" style="width:${progress}%;background:${BAR_COLORS[lv.cls]}"></div></div>
+      <div class="next-level-labels"><span>${fmt(ar)}</span><span>${nextLabel}</span></div>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Deal / project</th><th>Deal fees</th><th>Retainer paid</th><th>Split?</th><th>Retainer credit (35%)</th><th>Total AR credit</th></tr></thead>
+      <tbody>
+        ${p.deals.map(d=>{
+          let ret=parseFloat(d.retainer)||0, splitRet=d.retainerSplit?ret/2:ret, retCredit=splitRet*0.35, fees=parseFloat(d.fees)||0, total=fees+retCredit;
+          return `<tr><td>${d.desc||'<span style="color:#ccc">—</span>'}</td><td>${fees>0?fmt(fees):'—'}</td><td>${ret>0?fmt(ret):'—'}</td><td style="text-align:center">${d.retainerSplit?'<span style="color:#009775;font-weight:700">Yes</span>':'—'}</td><td>${retCredit>0?fmt(retCredit):'—'}</td><td style="font-weight:600">${total>0?fmt(total):'—'}</td></tr>`;
+        }).join('')}
+        <tr style="background:#f7fdf9"><td colspan="5" style="font-weight:700;text-align:right">Total Attributable Revenue</td><td style="font-weight:700;color:#009775;font-size:15px">${fmt(ar)}</td></tr>
+      </tbody>
+    </table></div>
+    <div class="footer-note">Data is managed by your manager and synced from SharePoint. Retainer credit = 35% of paid amount (50% applied first if co-originated).</div>`;
+}
+
+/* ══════════════════════════════════════
+   MANAGER: DASHBOARD
+══════════════════════════════════════ */
+function renderDash(){
+  const totalAR=people.reduce((s,p)=>s+calcAR(p),0);
+  const avgRate=people.length?people.reduce((s,p)=>s+getLevel(calcAR(p)).rate,0)/people.length:0;
+  const pipCount=people.filter(p=>calcAR(p)<300000).length;
+  document.getElementById('dash-metrics').innerHTML=`
+    <div class="metric"><div class="metric-label">Originators tracked</div><div class="metric-val">${people.length}</div></div>
+    <div class="metric"><div class="metric-label">Team attributable revenue</div><div class="metric-val">${fmt(totalAR)}</div><div class="metric-sub">trailing 12 months combined</div></div>
+    <div class="metric"><div class="metric-label">Avg. commission rate</div><div class="metric-val">${Math.round(avgRate*100)}%</div></div>
+    <div class="metric"><div class="metric-label">On PIP / at risk</div><div class="metric-val" style="color:${pipCount>0?'#A32D2D':'#252A36'}">${pipCount}</div><div class="metric-sub">below $300k threshold</div></div>`;
+  document.getElementById('dash-tbody').innerHTML=people.map((p,i)=>{
+    const ar=calcAR(p), lv=getLevel(ar), idx=LEVELS.indexOf(lv), nextLv=LEVELS[idx-1];
+    let progress=100, nextLabel='Top tier';
+    if(nextLv){ const span=nextLv.min-(lv.min||0); progress=Math.min(100,Math.round(((ar-(lv.min||0))/span)*100)); nextLabel=fmt(nextLv.min-ar)+' to '+nextLv.name; }
+    const pip=ar<300000, name=p.name||'Originator '+(i+1), bc=BAR_COLORS[lv.cls]||'#185FA5';
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:10px"><div class="avatar" style="background:${avatarColor(i)}">${initials(name)}</div><span style="font-weight:600">${name}</span></div></td>
+      <td style="font-weight:600">${fmt(ar)}</td>
+      <td><span class="badge ${lv.badge}">${lv.name}</span>${pip?'<div class="pip-warn">▲ PIP threshold</div>':''}</td>
+      <td style="font-weight:700;font-size:15px">${pct(lv.rate)}</td>
+      <td>${fmt(lv.rate*100000)}</td>
+      <td><div class="progress-wrap"><div class="progress-fill" style="width:${progress}%;background:${bc}"></div></div><div class="progress-labels"><span>${fmt(ar)}</span><span>${nextLabel}</span></div></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════
+   MANAGER: DATA ENTRY
+══════════════════════════════════════ */
+function addPerson(){ people.push({id:nextId++,name:'',pin:'',deals:[{desc:'',fees:0,retainer:0,retainerSplit:false}]}); renderData(); renderDash(); renderPins(); }
+function removePerson(id){ if(people.length<=1){alert('Keep at least one originator.');return;} people=people.filter(p=>p.id!==id); renderData(); renderDash(); renderPins(); }
+function addDeal(pid){ const p=people.find(x=>x.id===pid); if(p)p.deals.push({desc:'',fees:0,retainer:0,retainerSplit:false}); renderData(); }
+function removeDeal(pid,idx){ const p=people.find(x=>x.id===pid); if(p&&p.deals.length>1){p.deals.splice(idx,1);renderData();renderDash();} }
+function updateField(pid,idx,field,val){ const p=people.find(x=>x.id===pid); if(p&&p.deals[idx]!==undefined)p.deals[idx][field]=val; renderDash(); }
+function updateName(pid,val){ const p=people.find(x=>x.id===pid); if(p)p.name=val; renderDash(); renderPins(); }
+
+function renderData(){
+  const el=document.getElementById('people-list');
+  el.innerHTML=people.map((p,pi)=>{
+    const ar=calcAR(p), lv=getLevel(ar), name=p.name||'Originator '+(pi+1);
+    return `<div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><div class="avatar-sm" style="background:${avatarColor(pi)}">${initials(name)}</div>${name}</div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="badge ${lv.badge}">${lv.name} &mdash; ${pct(lv.rate)}</span>
+          <span style="font-size:12px;font-weight:600;color:#252A36">${fmt(ar)}</span>
+          <button class="btn-remove-person" onclick="removePerson(${p.id})">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg> Remove
+          </button>
+        </div>
+      </div>
+      <div class="name-row"><div><label>Originator name</label><input type="text" placeholder="Full name" value="${p.name||''}" oninput="updateName(${p.id},this.value)"></div></div>
+      <div class="form-grid-header"><span>Deal / project description</span><span>Deal fees ($)</span><span>Retainer paid ($)</span><span style="text-align:center">Split 50/50?</span><span></span></div>
+      ${p.deals.map((d,di)=>`
+      <div class="form-grid">
+        <input type="text" placeholder="e.g. Acme Manufacturing sale" value="${d.desc||''}" oninput="updateField(${p.id},${di},'desc',this.value)">
+        <input type="number" placeholder="0" value="${d.fees||''}" min="0" oninput="updateField(${p.id},${di},'fees',parseFloat(this.value)||0)">
+        <input type="number" placeholder="0" value="${d.retainer||''}" min="0" oninput="updateField(${p.id},${di},'retainer',parseFloat(this.value)||0)">
+        <div class="checkbox-wrap"><input type="checkbox" ${d.retainerSplit?'checked':''} onchange="updateField(${p.id},${di},'retainerSplit',this.checked)"></div>
+        <button class="btn-del" onclick="removeDeal(${p.id},${di})">&times;</button>
+      </div>`).join('')}
+      <button class="btn-secondary" onclick="addDeal(${p.id})">+ Add row</button>
+    </div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════
+   MANAGER: PINS
+══════════════════════════════════════ */
+function renderPins(){
+  document.getElementById('mgr-pin-display').textContent = managerPin;
+  document.getElementById('pin-tbody').innerHTML=people.map((p,i)=>{
+    const name=p.name||'Originator '+(i+1);
+    return `<tr>
+      <td><div style="display:flex;align-items:center;gap:8px"><div class="avatar-sm" style="background:${avatarColor(i)}">${initials(name)}</div>${name}</div></td>
+      <td>${p.pin?`<span class="pin-badge">${p.pin}</span>`:'<span style="color:#ccc;font-size:12px">No PIN set</span>'}</td>
+      <td><input class="pin-input" type="text" id="pin-${p.id}" placeholder="Set PIN" maxlength="12" autocomplete="off"></td>
+      <td><button class="btn-primary" style="padding:6px 12px;font-size:12px" onclick="updatePin(${p.id})">Set PIN</button></td>
+    </tr>`;
+  }).join('');
+}
+function updatePin(pid){
+  const val=document.getElementById('pin-'+pid).value.trim();
+  if(!val){alert('Please enter a PIN.');return;}
+  if(val===managerPin){alert('That PIN is already used by the manager.');return;}
+  const conflict=people.find(p=>p.id!==pid&&p.pin===val);
+  if(conflict){alert('That PIN is already used by '+(conflict.name||'another originator')+'.');return;}
+  const p=people.find(x=>x.id===pid); if(p) p.pin=val;
+  saveToSharePoint(); renderPins();
+}
+function updateManagerPin(){
+  const val=document.getElementById('new-mgr-pin').value.trim();
+  if(!val){alert('Please enter a new PIN.');return;}
+  const conflict=people.find(p=>p.pin===val);
+  if(conflict){alert('That PIN is already used by '+(conflict.name||'an originator')+'.');return;}
+  managerPin=val; saveToSharePoint();
+  document.getElementById('new-mgr-pin').value='';
+  renderPins(); alert('Manager PIN updated.');
+}
+
+/* ══════════════════════════════════════
+   IMPORT CSV
+══════════════════════════════════════ */
+function parseCSVLine(line){
+  // Handles quoted fields with commas inside them
+  const result = [];
+  let cur = '', inQuotes = false;
+  for(let i=0;i<line.length;i++){
+    const ch = line[i];
+    if(inQuotes){
+      if(ch === '"'){
+        if(line[i+1] === '"'){ cur+='"'; i++; }
+        else inQuotes = false;
+      } else cur += ch;
+    } else {
+      if(ch === '"') inQuotes = true;
+      else if(ch === ','){ result.push(cur); cur=''; }
+      else cur += ch;
+    }
+  }
+  result.push(cur);
+  return result.map(s=>s.trim());
+}
+
+function handleCSVImport(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      const text = e.target.result;
+      const lines = text.split(/\r?\n/).filter(l=>l.trim().length>0);
+      if(lines.length < 2){ alert('CSV appears empty.'); return; }
+
+      const header = parseCSVLine(lines[0]).map(h=>h.toLowerCase());
+      const nameIdx = header.findIndex(h=>h.includes('name') && !h.includes('description'));
+      const descIdx = header.findIndex(h=>h.includes('description'));
+      const feesIdx = header.findIndex(h=>h.includes('fee'));
+      const retainerIdx = header.findIndex(h=>h.includes('retainer') && h.includes('paid'));
+      const splitIdx = header.findIndex(h=>h.includes('split'));
+
+      if(nameIdx===-1 || feesIdx===-1){
+        alert('Could not find required columns. Make sure your CSV has at least "Name" and "Deal Fees" columns.');
+        return;
+      }
+
+      const newPeople = [];
+      let lastPersonName = '';
+      let curPerson = null;
+
+      for(let i=1;i<lines.length;i++){
+        const row = parseCSVLine(lines[i]);
+        if(row.length===0) continue;
+
+        const rawName = nameIdx>=0 ? (row[nameIdx]||'').trim() : '';
+        const desc = descIdx>=0 ? (row[descIdx]||'').trim() : '';
+        const fees = feesIdx>=0 ? (parseFloat((row[feesIdx]||'0').replace(/[^0-9.-]/g,''))||0) : 0;
+        const retainer = retainerIdx>=0 ? (parseFloat((row[retainerIdx]||'0').replace(/[^0-9.-]/g,''))||0) : 0;
+        const splitVal = splitIdx>=0 ? (row[splitIdx]||'').trim().toLowerCase() : '';
+        const split = splitVal==='yes' || splitVal==='true' || splitVal==='y';
+
+        const effectiveName = rawName || lastPersonName;
+        if(!effectiveName) continue; // skip rows with no name context
+
+        if(rawName){ lastPersonName = rawName; }
+
+        // Find or create person in this import batch
+        curPerson = newPeople.find(p=>p.name.toLowerCase()===effectiveName.toLowerCase());
+        if(!curPerson){
+          curPerson = {id: nextId++, name: effectiveName, pin:'', deals:[]};
+          newPeople.push(curPerson);
+        }
+        // Skip empty summary rows (e.g. "Total Attributable Revenue" rows from export)
+        if(desc.toLowerCase().includes('total attributable')) continue;
+
+        if(desc || fees>0 || retainer>0){
+          curPerson.deals.push({desc, fees, retainer, retainerSplit:split});
+        }
+      }
+
+      if(newPeople.length===0){ alert('No valid rows found to import.'); return; }
+
+      // Preserve existing PINs if names match
+      newPeople.forEach(np=>{
+        const existing = people.find(p=>p.name.toLowerCase()===np.name.toLowerCase());
+        if(existing && existing.pin) np.pin = existing.pin;
+        if(np.deals.length===0) np.deals.push({desc:'',fees:0,retainer:0,retainerSplit:false});
+      });
+
+      const summary = newPeople.map(p=>`${p.name} (${p.deals.length} row${p.deals.length===1?'':'s'})`).join('\n');
+      const confirmed = confirm(`Import will replace current data with:\n\n${summary}\n\nContinue?`);
+      if(!confirmed) return;
+
+      people = newPeople;
+      saveToSharePoint();
+      renderData(); renderDash(); renderPins();
+      document.getElementById('csv-file-input').value = '';
+      alert('Import complete — '+newPeople.length+' originator(s) loaded.');
+    } catch(err){
+      alert('Error reading CSV: '+err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ══════════════════════════════════════
+   EXPORT CSV
+══════════════════════════════════════ */
+function exportCSV(){
+  let rows=[['Name','Description','Deal Fees','Retainer Paid','Split Retainer','Retainer Credit','Total AR Credit','T12M Attributable Revenue','Level','Rate']];
+  people.forEach(p=>{
+    const ar=calcAR(p), lv=getLevel(ar);
+    p.deals.forEach((d,i)=>{
+      let ret=parseFloat(d.retainer)||0, splitRet=d.retainerSplit?ret/2:ret, retCredit=splitRet*0.35, fees=parseFloat(d.fees)||0;
+      rows.push([i===0?p.name:'',d.desc||'',fees,ret,d.retainerSplit?'Yes':'No',retCredit.toFixed(2),(fees+retCredit).toFixed(2),i===0?ar.toFixed(2):'',i===0?lv.name:'',i===0?pct(lv.rate):'']);
+    });
+  });
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv); a.download='CookMA_Commission_Tracker_2026.csv'; a.click();
+}
+
+/* ══════════════════════════════════════
+   INIT — handle redirect on page load
+══════════════════════════════════════ */
+(async function init(){
+  try {
+    await msalInstance.initialize();
+    const redirectResult = await msalInstance.handleRedirectPromise();
+    if(redirectResult){
+      // Came back from Microsoft login redirect
+      accessToken = redirectResult.accessToken;
+      document.getElementById('splash-status').textContent = 'Loading data from SharePoint…';
+      await resolveSharePointIds();
+      await loadFromSharePoint();
+      showLoginScreen();
+      return;
+    }
+    // Check if already signed in
+    const accounts = msalInstance.getAllAccounts();
+    if(accounts.length > 0){
+      try {
+        const tokenResp = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account: accounts[0] });
+        accessToken = tokenResp.accessToken;
+        document.getElementById('splash-status').textContent = 'Loading data from SharePoint…';
+        await resolveSharePointIds();
+        await loadFromSharePoint();
+        showLoginScreen();
+        return;
+      } catch(e){ /* fall through to show sign-in button */ }
+    }
+    // Show sign-in button
+    document.getElementById('splash-status').textContent = 'Sign in with your Cook M&A Microsoft account to continue.';
+  } catch(e){
+    document.getElementById('splash-status').textContent = 'Sign in with your Cook M&A Microsoft account to continue.';
+  }
+})();
+</script>
+</body>
+</html>
