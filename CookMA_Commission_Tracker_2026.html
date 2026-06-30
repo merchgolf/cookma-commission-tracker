@@ -7,7 +7,31 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js" onload="window.__msalLoaded=true" onerror="window.__msalLoadError=true"></script>
+<script>
+// Load MSAL with fallback across multiple CDNs, since CDN paths/availability can change.
+window.__msalLoaded = false;
+window.__msalLoadError = false;
+(function loadMsalWithFallback(){
+  const sources = [
+    'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2/lib/msal-browser.min.js',
+    'https://unpkg.com/@azure/msal-browser@2/lib/msal-browser.min.js',
+    'https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js'
+  ];
+  let i = 0;
+  function tryNext(){
+    if(i >= sources.length){ window.__msalLoadError = true; return; }
+    const s = document.createElement('script');
+    s.src = sources[i];
+    s.onload = function(){
+      if(typeof msal !== 'undefined'){ window.__msalLoaded = true; }
+      else { i++; tryNext(); }
+    };
+    s.onerror = function(){ i++; tryNext(); };
+    document.head.appendChild(s);
+  }
+  tryNext();
+})();
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Plus Jakarta Sans',sans-serif;background:#F5F5F5;color:#22252A;min-height:100vh;font-size:14px}
@@ -349,7 +373,7 @@ function waitForMsalLibrary(timeoutMs){
 
 async function getMsalInstance(){
   if(msalInstance) return msalInstance;
-  await waitForMsalLibrary(10000);
+  await waitForMsalLibrary(15000);
   msalInstance = new msal.PublicClientApplication(msalConfig);
   return msalInstance;
 }
