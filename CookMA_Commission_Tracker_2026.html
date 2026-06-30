@@ -337,12 +337,12 @@ input[type=checkbox]{width:15px;height:15px;accent-color:#009775;cursor:pointer}
    CONFIGURATION — update these values
 ══════════════════════════════════════ */
 const CONFIG = {
-  clientId:   '364a3d5f-4ec9-45a6-b519-b544948d896d',
-  tenantId:   '143cd7be-cb78-44ce-ac89-7eaf1d077bfa',
-  siteHost:   'cookma.sharepoint.com',
-  sitePath:   '/Administrative',
-  driveLib:   'Administrative',          // document library name
-  dataFile:   'commission_tracker_2026.json'  // file saved in that library
+  clientId:      '364a3d5f-4ec9-45a6-b519-b544948d896d',
+  tenantId:      '143cd7be-cb78-44ce-ac89-7eaf1d077bfa',
+  // OneDrive for Business — data file stored in manager's OneDrive root
+  oneDriveUser:  'smerchant_cookma_com',   // OneDrive identifier for Scott Merchant
+  oneDriveHost:  'cookma-my.sharepoint.com',
+  dataFile:      'commission_tracker_2026.json'
 };
 
 /* ══════════════════════════════════════
@@ -357,7 +357,7 @@ const msalConfig = {
   cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
 };
 let msalInstance = null;
-const graphScopes = ['Files.ReadWrite', 'Sites.Read.All', 'User.Read'];
+const graphScopes = ['Files.ReadWrite', 'User.Read'];
 
 function waitForMsalLibrary(timeoutMs){
   return new Promise((resolve, reject)=>{
@@ -379,7 +379,7 @@ async function getMsalInstance(){
 }
 
 let accessToken = null;
-let siteId = null;
+let siteId = null; // unused but kept for reference
 let driveId = null;
 let fileId = null;   // Graph item ID of the JSON file once found/created
 
@@ -498,25 +498,23 @@ async function graphUploadText(url, text){
 }
 
 /* ══════════════════════════════════════
-   RESOLVE SITE + DRIVE IDs
+   RESOLVE DRIVE ID
+   Uses manager's OneDrive for Business — no Sites.* permissions needed.
+   Files.ReadWrite (delegated) is sufficient.
 ══════════════════════════════════════ */
 async function resolveSharePointIds(){
-  // Sites.Read.All (delegated) does NOT require admin consent — only Sites.ReadWrite.All does.
-  const siteData = await graphRequest('GET', `/sites/${CONFIG.siteHost}:${CONFIG.sitePath}`);
-  siteId = siteData.id;
-  const drivesData = await graphRequest('GET', `/sites/${siteId}/drives`);
-  const drive = drivesData.value.find(d => d.name === CONFIG.driveLib);
-  if(!drive) throw new Error(`Library "${CONFIG.driveLib}" not found. Found: ${drivesData.value.map(d=>d.name).join(', ')}`);
-  driveId = drive.id;
+  // Point directly at the manager's OneDrive drive.
+  // /users/{UPN}/drive works with Files.ReadWrite delegated — no admin consent.
+  const upn = `smerchant@cookma.com`;
+  const driveData = await graphRequest('GET', `/users/${upn}/drive`);
+  driveId = driveData.id;
 }
 
 /* ══════════════════════════════════════
-   LOAD FROM SHAREPOINT
+   LOAD FROM SHAREPOINT (OneDrive)
 ══════════════════════════════════════ */
 async function loadFromSharePoint(){
   try {
-    // Use path-based access: /sites/{id}/drives/{id}/root:/{filename}
-    // Falls back gracefully if file doesn't exist yet
     try {
       const meta = await graphRequest('GET', `/drives/${driveId}/root:/${CONFIG.dataFile}`);
       fileId = meta.id;
@@ -531,8 +529,8 @@ async function loadFromSharePoint(){
       managerPin = data.managerPin || DEFAULT_MGR_PIN;
       people.forEach(p=>{ if(!p.pin) p.pin=''; if(!p.deals) p.deals=[]; });
     } catch(e){
-      if(e.message && e.message.includes('404')){
-        // File doesn't exist yet — create it on first run
+      if(e.message && (e.message.includes('404') || e.message.includes('itemNotFound'))){
+        // File doesn't exist yet — first run
         people = [{id:nextId++,name:'',pin:'',deals:[{desc:'',fees:0,retainer:0,retainerSplit:false}]}];
         await saveToSharePoint(true);
       } else {
@@ -546,7 +544,7 @@ async function loadFromSharePoint(){
 }
 
 /* ══════════════════════════════════════
-   SAVE TO SHAREPOINT
+   SAVE TO SHAREPOINT (OneDrive)
 ══════════════════════════════════════ */
 async function saveToSharePoint(silent){
   setSyncStatus('saving','Saving…');
@@ -555,7 +553,7 @@ async function saveToSharePoint(silent){
     const uploadUrl = `/drives/${driveId}/root:/${CONFIG.dataFile}:/content`;
     const result = await graphUploadText(uploadUrl, payload);
     fileId = result.id;
-    setSyncStatus('synced','Synced to SharePoint');
+    setSyncStatus('synced','Synced to OneDrive');
     if(!silent){
       const lbl = document.getElementById('sync-label');
       setTimeout(()=>lbl.textContent='Synced',2500);
