@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js" onload="window.__msalLoaded=true" onerror="window.__msalLoadError=true"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Plus Jakarta Sans',sans-serif;background:#F5F5F5;color:#22252A;min-height:100vh;font-size:14px}
@@ -332,8 +332,27 @@ const msalConfig = {
   },
   cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
 };
-const msalInstance = new msal.PublicClientApplication(msalConfig);
+let msalInstance = null;
 const graphScopes = ['Files.ReadWrite', 'Sites.ReadWrite.All'];
+
+function waitForMsalLibrary(timeoutMs){
+  return new Promise((resolve, reject)=>{
+    const start = Date.now();
+    (function check(){
+      if(typeof msal !== 'undefined'){ resolve(); return; }
+      if(window.__msalLoadError){ reject(new Error('Failed to load the Microsoft sign-in library (msal-browser.min.js) from alcdn.msauth.net. Check your network/firewall allows this CDN.')); return; }
+      if(Date.now() - start > timeoutMs){ reject(new Error('Timed out waiting for the Microsoft sign-in library to load. Check your internet connection and try refreshing.')); return; }
+      setTimeout(check, 50);
+    })();
+  });
+}
+
+async function getMsalInstance(){
+  if(msalInstance) return msalInstance;
+  await waitForMsalLibrary(10000);
+  msalInstance = new msal.PublicClientApplication(msalConfig);
+  return msalInstance;
+}
 
 let accessToken = null;
 let siteId = null;
@@ -391,18 +410,19 @@ async function msalSignIn(){
   btn.disabled = true;
   status.textContent = 'Signing in…';
   try {
+    const msalInst = await getMsalInstance();
     // Handle redirect response first
-    await msalInstance.initialize();
-    const redirectResult = await msalInstance.handleRedirectPromise();
-    let account = redirectResult ? redirectResult.account : msalInstance.getAllAccounts()[0];
+    await msalInst.initialize();
+    const redirectResult = await msalInst.handleRedirectPromise();
+    let account = redirectResult ? redirectResult.account : msalInst.getAllAccounts()[0];
 
     if(!account){
       // Trigger redirect login
-      await msalInstance.loginRedirect({ scopes: graphScopes });
+      await msalInst.loginRedirect({ scopes: graphScopes });
       return;
     }
     // Acquire token silently
-    const tokenResp = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account });
+    const tokenResp = await msalInst.acquireTokenSilent({ scopes: graphScopes, account });
     accessToken = tokenResp.accessToken;
     status.textContent = 'Loading data from SharePoint…';
     await resolveSharePointIds();
@@ -410,7 +430,8 @@ async function msalSignIn(){
     showLoginScreen();
   } catch(e) {
     if(e.name === 'InteractionRequiredAuthError'){
-      await msalInstance.loginRedirect({ scopes: graphScopes });
+      const msalInst = await getMsalInstance();
+      await msalInst.loginRedirect({ scopes: graphScopes });
     } else {
       showSplashError('Sign-in failed: '+e.message+'. Make sure the Redirect URI in Azure matches this page URL exactly: '+window.location.href.split('?')[0].split('#')[0]);
       btn.disabled = false;
@@ -844,8 +865,9 @@ function exportCSV(){
 ══════════════════════════════════════ */
 (async function init(){
   try {
-    await msalInstance.initialize();
-    const redirectResult = await msalInstance.handleRedirectPromise();
+    const msalInst = await getMsalInstance();
+    await msalInst.initialize();
+    const redirectResult = await msalInst.handleRedirectPromise();
     if(redirectResult){
       // Came back from Microsoft login redirect
       accessToken = redirectResult.accessToken;
@@ -856,10 +878,10 @@ function exportCSV(){
       return;
     }
     // Check if already signed in
-    const accounts = msalInstance.getAllAccounts();
+    const accounts = msalInst.getAllAccounts();
     if(accounts.length > 0){
       try {
-        const tokenResp = await msalInstance.acquireTokenSilent({ scopes: graphScopes, account: accounts[0] });
+        const tokenResp = await msalInst.acquireTokenSilent({ scopes: graphScopes, account: accounts[0] });
         accessToken = tokenResp.accessToken;
         document.getElementById('splash-status').textContent = 'Loading data from SharePoint…';
         await resolveSharePointIds();
@@ -872,6 +894,7 @@ function exportCSV(){
     document.getElementById('splash-status').textContent = 'Sign in with your Cook M&A Microsoft account to continue.';
   } catch(e){
     document.getElementById('splash-status').textContent = 'Sign in with your Cook M&A Microsoft account to continue.';
+    showSplashError('Initialization error: '+e.message);
   }
 })();
 </script>
