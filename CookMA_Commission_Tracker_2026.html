@@ -357,7 +357,7 @@ const msalConfig = {
   cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
 };
 let msalInstance = null;
-const graphScopes = ['Files.ReadWrite', 'Sites.ReadWrite.All'];
+const graphScopes = ['Files.ReadWrite', 'Sites.Read.All', 'User.Read'];
 
 function waitForMsalLibrary(timeoutMs){
   return new Promise((resolve, reject)=>{
@@ -501,14 +501,12 @@ async function graphUploadText(url, text){
    RESOLVE SITE + DRIVE IDs
 ══════════════════════════════════════ */
 async function resolveSharePointIds(){
-  // Get site ID
+  // Sites.Read.All (delegated) does NOT require admin consent — only Sites.ReadWrite.All does.
   const siteData = await graphRequest('GET', `/sites/${CONFIG.siteHost}:${CONFIG.sitePath}`);
   siteId = siteData.id;
-
-  // Get drive (document library)
   const drivesData = await graphRequest('GET', `/sites/${siteId}/drives`);
   const drive = drivesData.value.find(d => d.name === CONFIG.driveLib);
-  if(!drive) throw new Error(`Document library "${CONFIG.driveLib}" not found. Available: ${drivesData.value.map(d=>d.name).join(', ')}`);
+  if(!drive) throw new Error(`Library "${CONFIG.driveLib}" not found. Found: ${drivesData.value.map(d=>d.name).join(', ')}`);
   driveId = drive.id;
 }
 
@@ -517,26 +515,29 @@ async function resolveSharePointIds(){
 ══════════════════════════════════════ */
 async function loadFromSharePoint(){
   try {
-    // Try to find existing file
-    const items = await graphRequest('GET', `/drives/${driveId}/root/children`);
-    const existing = items.value.find(f => f.name === CONFIG.dataFile);
-
-    if(existing){
-      fileId = existing.id;
-      // Download content
+    // Use path-based access: /sites/{id}/drives/{id}/root:/{filename}
+    // Falls back gracefully if file doesn't exist yet
+    try {
+      const meta = await graphRequest('GET', `/drives/${driveId}/root:/${CONFIG.dataFile}`);
+      fileId = meta.id;
       const contentResp = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/content`, {
         headers: { 'Authorization': 'Bearer '+accessToken }
       });
+      if(!contentResp.ok) throw new Error('Download failed: '+contentResp.status);
       const text = await contentResp.text();
       const data = JSON.parse(text);
       people = data.people || [];
       nextId = data.nextId || people.length+1;
       managerPin = data.managerPin || DEFAULT_MGR_PIN;
       people.forEach(p=>{ if(!p.pin) p.pin=''; if(!p.deals) p.deals=[]; });
-    } else {
-      // First run — create the file with defaults
-      people = [{id:nextId++,name:'',pin:'',deals:[{desc:'',fees:0,retainer:0,retainerSplit:false}]}];
-      await saveToSharePoint(true);
+    } catch(e){
+      if(e.message && e.message.includes('404')){
+        // File doesn't exist yet — create it on first run
+        people = [{id:nextId++,name:'',pin:'',deals:[{desc:'',fees:0,retainer:0,retainerSplit:false}]}];
+        await saveToSharePoint(true);
+      } else {
+        throw e;
+      }
     }
   } catch(e) {
     console.warn('Load error:', e);
