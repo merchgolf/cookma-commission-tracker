@@ -277,7 +277,8 @@ input[type=checkbox]{width:15px;height:15px;accent-color:#009775;cursor:pointer}
         </button>
         <input type="file" id="csv-file-input" accept=".csv" style="display:none" onchange="handleCSVImport(this.files[0])">
       </div>
-      <div class="tip-bar">Changes save to SharePoint and are immediately visible to everyone. Enter each originator's trailing 12-month deals. Retainer credit = 35% of paid amount; check "Split?" if shared 50/50 with a co-originator.</div>
+      <div class="tip-bar">Changes save to OneDrive and are immediately visible to everyone once the share link is configured. Enter each originator's trailing 12-month deals. Retainer credit = 35% of paid amount; check "Split?" if shared 50/50 with a co-originator.</div>
+      <div id="share-link-warning" class="tip-bar" style="background:#fff4e0;border-color:#FAC775;color:#854F0B;display:none"><strong>⚠ Share link not yet configured.</strong> After your first Save to OneDrive, go to OneDrive → find commission_tracker_2026.json → Share → Anyone with link can view → copy the link → paste it into the SHARE_LINK constant in the HTML file and re-upload to GitHub. Until then, only you can load data.</div>
       <div class="tip-bar" style="background:#eef5ff;border-color:#bcd9f7;color:#185FA5">
         <strong>CSV import format:</strong> columns should be <code>Name, Description, Deal Fees, Retainer Paid, Split Retainer</code> (Split Retainer = Yes/No). One row per deal — repeat the same Name for multiple deals under one originator, or leave Name blank on follow-up rows for the same person (matches your Export CSV format). This <strong>replaces</strong> all current data after you confirm.
       </div>
@@ -352,7 +353,7 @@ const msalConfig = {
   auth: {
     clientId: CONFIG.clientId,
     authority: `https://login.microsoftonline.com/${CONFIG.tenantId}`,
-    redirectUri: window.location.href.split('?')[0].split('#')[0]
+    redirectUri: 'https://merchgolf.github.io/cookma-commission-tracker/CookMA_Commission_Tracker_2026.html'
   },
   cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
 };
@@ -499,42 +500,58 @@ async function graphUploadText(url, text){
 
 /* ══════════════════════════════════════
    RESOLVE DRIVE ID
-   Uses manager's OneDrive for Business — no Sites.* permissions needed.
-   Files.ReadWrite (delegated) is sufficient.
+   Uses /me/drive — works for whoever is signed in.
+   Manager signs in as themselves; drive ID is their OneDrive.
+   No Sites.* permissions needed — Files.ReadWrite only.
 ══════════════════════════════════════ */
 async function resolveSharePointIds(){
-  // Point directly at the manager's OneDrive drive.
-  // /users/{UPN}/drive works with Files.ReadWrite delegated — no admin consent.
-  const upn = `smerchant@cookma.com`;
-  const driveData = await graphRequest('GET', `/users/${upn}/drive`);
+  const driveData = await graphRequest('GET', `/me/drive`);
   driveId = driveData.id;
 }
 
 /* ══════════════════════════════════════
-   LOAD FROM SHAREPOINT (OneDrive)
+   LOAD FROM ONEDRIVE
+   Reads via public share link if configured (for all users),
+   or via Graph API /me/drive (manager first-run only).
 ══════════════════════════════════════ */
+const SHARE_LINK = ''; // ← paste OneDrive share link here after first manager save
+
 async function loadFromSharePoint(){
   try {
-    try {
-      const meta = await graphRequest('GET', `/drives/${driveId}/root:/${CONFIG.dataFile}`);
-      fileId = meta.id;
-      const contentResp = await fetch(`https://graph.microsoft.com/v1.0/drives/${driveId}/items/${fileId}/content`, {
-        headers: { 'Authorization': 'Bearer '+accessToken }
-      });
-      if(!contentResp.ok) throw new Error('Download failed: '+contentResp.status);
-      const text = await contentResp.text();
-      const data = JSON.parse(text);
+    if(SHARE_LINK){
+      // All users: fetch via public share link — no auth needed
+      // Convert OneDrive share URL to direct download URL
+      const encoded = btoa(SHARE_LINK).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+      const downloadUrl = `https://api.onedrive.com/v1.0/shares/u!${encoded}/root/content`;
+      const resp = await fetch(downloadUrl);
+      if(!resp.ok) throw new Error('Share link fetch failed: '+resp.status);
+      const data = await resp.json();
       people = data.people || [];
       nextId = data.nextId || people.length+1;
       managerPin = data.managerPin || DEFAULT_MGR_PIN;
       people.forEach(p=>{ if(!p.pin) p.pin=''; if(!p.deals) p.deals=[]; });
-    } catch(e){
-      if(e.message && (e.message.includes('404') || e.message.includes('itemNotFound'))){
-        // File doesn't exist yet — first run
-        people = [{id:nextId++,name:'',pin:'',deals:[{desc:'',fees:0,retainer:0,retainerSplit:false}]}];
-        await saveToSharePoint(true);
-      } else {
-        throw e;
+    } else {
+      // Manager first-run: load via Graph API /me/drive
+      try {
+        const meta = await graphRequest('GET', `/me/drive/root:/${CONFIG.dataFile}`);
+        fileId = meta.id;
+        const contentResp = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${fileId}/content`, {
+          headers: { 'Authorization': 'Bearer '+accessToken }
+        });
+        if(!contentResp.ok) throw new Error('Download failed: '+contentResp.status);
+        const text = await contentResp.text();
+        const data = JSON.parse(text);
+        people = data.people || [];
+        nextId = data.nextId || people.length+1;
+        managerPin = data.managerPin || DEFAULT_MGR_PIN;
+        people.forEach(p=>{ if(!p.pin) p.pin=''; if(!p.deals) p.deals=[]; });
+      } catch(e){
+        if(e.message && (e.message.includes('404') || e.message.includes('itemNotFound'))){
+          // File doesn't exist yet — start fresh
+          people = [{id:nextId++,name:'',pin:'',deals:[{desc:'',fees:0,retainer:0,retainerSplit:false}]}];
+        } else {
+          throw e;
+        }
       }
     }
   } catch(e) {
@@ -544,13 +561,13 @@ async function loadFromSharePoint(){
 }
 
 /* ══════════════════════════════════════
-   SAVE TO SHAREPOINT (OneDrive)
+   SAVE TO ONEDRIVE (manager only)
 ══════════════════════════════════════ */
 async function saveToSharePoint(silent){
   setSyncStatus('saving','Saving…');
   try {
     const payload = JSON.stringify({people, nextId, managerPin}, null, 2);
-    const uploadUrl = `/drives/${driveId}/root:/${CONFIG.dataFile}:/content`;
+    const uploadUrl = `/me/drive/root:/${CONFIG.dataFile}:/content`;
     const result = await graphUploadText(uploadUrl, payload);
     fileId = result.id;
     setSyncStatus('synced','Synced to OneDrive');
@@ -593,6 +610,9 @@ function launchApp(){
     document.getElementById('mgr-tabs').style.display='flex';
     document.getElementById('orig-tabs').style.display='none';
     showTab('dashboard', document.querySelector('#mgr-tabs .tab'));
+    // Show share link warning if not yet configured
+    const warn = document.getElementById('share-link-warning');
+    if(warn) warn.style.display = SHARE_LINK ? 'none' : 'block';
     renderDash(); renderData(); renderPins();
   } else {
     const p = people.find(x=>x.id===currentUser);
