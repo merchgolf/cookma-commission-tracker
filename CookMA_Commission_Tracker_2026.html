@@ -519,12 +519,17 @@ const SHARE_LINK = 'https://cookma-my.sharepoint.com/:u:/p/smerchant/IQAAeUlALMg
 async function loadFromSharePoint(){
   try {
     if(SHARE_LINK){
-      // All users: fetch via public share link — no auth needed
-      // Convert OneDrive share URL to direct download URL
-      const encoded = btoa(SHARE_LINK).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
-      const downloadUrl = `https://api.onedrive.com/v1.0/shares/u!${encoded}/root/content`;
-      const resp = await fetch(downloadUrl);
-      if(!resp.ok) throw new Error('Share link fetch failed: '+resp.status);
+      // Use Graph API shares endpoint — works for OneDrive for Business share links
+      // Encode the share URL to base64url as required by Graph API
+      const base64 = btoa(SHARE_LINK)
+        .replace(/=/g, '')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_');
+      const sharesUrl = `https://graph.microsoft.com/v1.0/shares/u!${base64}/driveItem/content`;
+      const resp = await fetch(sharesUrl, {
+        headers: { 'Authorization': 'Bearer ' + accessToken }
+      });
+      if(!resp.ok) throw new Error('Share fetch failed: '+resp.status);
       const data = await resp.json();
       people = data.people || [];
       nextId = data.nextId || people.length+1;
@@ -556,6 +561,7 @@ async function loadFromSharePoint(){
     }
   } catch(e) {
     console.warn('Load error:', e);
+    showSplashError('Could not load data: '+e.message+'. Please contact your manager.');
     people = [{id:nextId++,name:'',pin:'',deals:[{desc:'',fees:0,retainer:0,retainerSplit:false}]}];
   }
 }
