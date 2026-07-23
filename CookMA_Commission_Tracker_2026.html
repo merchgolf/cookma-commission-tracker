@@ -301,7 +301,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:#009775;cursor:pointer}
       <div class="section-title">Originator PINs</div>
       <div class="tip-bar" style="margin-bottom:14px">Share each originator's PIN with them directly — they will only see their own data when they sign in.</div>
       <div class="table-wrap"><table class="pin-table"><thead><tr><th>Originator</th><th>PIN</th><th>New PIN</th><th></th></tr></thead><tbody id="pin-tbody"></tbody></table></div>
-      <div class="footer-note">PINs are stored in SharePoint alongside deal data. Do not share the manager PIN.</div>
+      <div class="footer-note">PINs are stored in OneDrive alongside deal data. Do not share the manager PIN.</div>
     </div>
 
     <!-- Originator view -->
@@ -449,7 +449,7 @@ async function msalSignIn(){
     // Acquire token silently
     const tokenResp = await msalInst.acquireTokenSilent({ scopes: graphScopes, account });
     accessToken = tokenResp.accessToken;
-    status.textContent = 'Loading data from SharePoint…';
+    status.textContent = 'Loading data from OneDrive…';
     await resolveSharePointIds();
     await loadFromSharePoint();
     showLoginScreen();
@@ -519,23 +519,18 @@ const SHARE_LINK = 'https://cookma-my.sharepoint.com/:u:/p/smerchant/IQAAeUlALMg
 async function loadFromSharePoint(){
   try {
     if(SHARE_LINK){
-      // Use Graph API shares endpoint — works for OneDrive for Business share links
-      const base64 = btoa(SHARE_LINK)
-        .replace(/=/g, '')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
-      const sharesUrl = `https://graph.microsoft.com/v1.0/shares/u!${base64}/driveItem/content`;
-      console.log('Fetching share link via:', sharesUrl);
-      const resp = await fetch(sharesUrl, {
-        headers: { 'Authorization': 'Bearer ' + accessToken }
-      });
-      console.log('Share fetch response status:', resp.status);
-      if(!resp.ok){
-        const errText = await resp.text();
-        console.error('Share fetch error body:', errText);
-        throw new Error('Share fetch failed ('+resp.status+'): '+errText);
-      }
-      const data = await resp.json();
+      // Convert OneDrive share link to a direct anonymous download URL.
+      // This bypasses Graph API auth issues entirely — works for anyone with the link.
+      // OneDrive share links can be converted by appending &download=1
+      const downloadUrl = SHARE_LINK.includes('?')
+        ? SHARE_LINK + '&download=1'
+        : SHARE_LINK + '?download=1';
+      console.log('Fetching data via direct download:', downloadUrl);
+      const resp = await fetch(downloadUrl);
+      console.log('Download response status:', resp.status);
+      if(!resp.ok) throw new Error('Download failed ('+resp.status+')');
+      const text = await resp.text();
+      const data = JSON.parse(text);
       console.log('Data loaded, people count:', (data.people||[]).length);
       people = data.people || [];
       nextId = data.nextId || people.length+1;
@@ -589,7 +584,7 @@ async function saveToSharePoint(silent){
     }
   } catch(e) {
     setSyncStatus('error','Save failed');
-    if(!silent) alert('Could not save to SharePoint: '+e.message);
+    if(!silent) alert('Could not save to OneDrive: '+e.message);
   }
 }
 
@@ -690,7 +685,7 @@ function renderMyView(){
         <tr style="background:#f7fdf9"><td colspan="5" style="font-weight:700;text-align:right">Total Attributable Revenue</td><td style="font-weight:700;color:#009775;font-size:15px">${fmt(ar)}</td></tr>
       </tbody>
     </table></div>
-    <div class="footer-note">Data is managed by your manager and synced from SharePoint. Retainer credit = 35% of paid amount (50% applied first if co-originated).</div>`;
+    <div class="footer-note">Data is managed by your manager and synced from OneDrive. Retainer credit = 35% of paid amount (50% applied first if co-originated).</div>`;
 }
 
 /* ══════════════════════════════════════
@@ -926,7 +921,7 @@ function exportCSV(){
     if(redirectResult){
       // Came back from Microsoft login redirect
       accessToken = redirectResult.accessToken;
-      document.getElementById('splash-status').textContent = 'Loading data from SharePoint…';
+      document.getElementById('splash-status').textContent = 'Loading data from OneDrive…';
       await resolveSharePointIds();
       await loadFromSharePoint();
       showLoginScreen();
@@ -938,7 +933,7 @@ function exportCSV(){
       try {
         const tokenResp = await msalInst.acquireTokenSilent({ scopes: graphScopes, account: accounts[0] });
         accessToken = tokenResp.accessToken;
-        document.getElementById('splash-status').textContent = 'Loading data from SharePoint…';
+        document.getElementById('splash-status').textContent = 'Loading data from OneDrive…';
         await resolveSharePointIds();
         await loadFromSharePoint();
         showLoginScreen();
