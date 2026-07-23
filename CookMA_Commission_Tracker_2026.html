@@ -293,7 +293,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:#009775;cursor:pointer}
 
 <script>
 /* ══ CONFIG ══ */
-const GITHUB_TOKEN  = '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';
+const GITHUB_TOKEN  = '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';
 const GITHUB_REPO   = 'merchgolf/cookma-commission-tracker';
 const GITHUB_FILE   = 'CookMA_Commission_Tracker_2026.html';
 const GITHUB_BRANCH = 'main';
@@ -437,26 +437,45 @@ async function saveToGitHub(){
   setSyncStatus('saving','Saving…');
   try{
     const data={people,nextId,managerPin};
-    // Get current file SHA (required by GitHub API to update a file)
+    const dataJson=JSON.stringify(data);
+
+    // Get current file metadata (SHA + download URL)
     const metaResp=await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE}?ref=${GITHUB_BRANCH}`,{
       headers:{'Authorization':'token '+GITHUB_TOKEN,'Accept':'application/vnd.github.v3+json'}
     });
+    if(!metaResp.ok) throw new Error('Could not read file from GitHub: '+metaResp.status);
     const meta=await metaResp.json();
     const sha=meta.sha;
-    // Get current file content, replace the data block
-    const currentContent=atob(meta.content.replace(/\n/g,''));
-    const dataJson=JSON.stringify(data);
+
+    // For large files GitHub omits content and provides download_url instead
+    let currentContent;
+    if(meta.content){
+      currentContent=decodeURIComponent(escape(atob(meta.content.replace(/\n/g,''))));
+    } else if(meta.download_url){
+      const dlResp=await fetch(meta.download_url);
+      if(!dlResp.ok) throw new Error('Could not download file: '+dlResp.status);
+      currentContent=await dlResp.text();
+    } else {
+      throw new Error('GitHub API returned no file content and no download URL.');
+    }
+
+    // Replace the embedded data block
+    if(!currentContent.includes('/*DATA_START*/')){
+      throw new Error('Data marker not found in file. Make sure you uploaded the latest version.');
+    }
     const newContent=currentContent.replace(
-      /\/\*DATA_START\*\/.*?\/\*DATA_END\*\//s,
+      /\/\*DATA_START\*\/[\s\S]*?\/\*DATA_END\*\//,
       '/*DATA_START*/'+dataJson+'/*DATA_END*/'
     );
-    // Upload updated file
+
+    // Upload updated file back to GitHub
+    const encoded=btoa(unescape(encodeURIComponent(newContent)));
     const updateResp=await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE}`,{
       method:'PUT',
       headers:{'Authorization':'token '+GITHUB_TOKEN,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
-      body:JSON.stringify({message:'Update commission data',content:btoa(unescape(encodeURIComponent(newContent))),sha,branch:GITHUB_BRANCH})
+      body:JSON.stringify({message:'Update commission data',content:encoded,sha,branch:GITHUB_BRANCH})
     });
-    if(!updateResp.ok){const e=await updateResp.text();throw new Error('GitHub API error: '+e);}
+    if(!updateResp.ok){const e=await updateResp.text();throw new Error('GitHub write error: '+e);}
     setSyncStatus('ok','Saved & Published');
     setTimeout(()=>setSyncStatus('ok','Ready'),3000);
   }catch(e){
