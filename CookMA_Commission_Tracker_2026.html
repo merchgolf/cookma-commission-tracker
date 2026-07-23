@@ -230,6 +230,14 @@ input[type=checkbox]{width:15px;height:15px;accent-color:#009775;cursor:pointer}
 
   <div id="tab-data" class="section">
     <div class="save-bar">
+      <div style="display:flex;flex-direction:column;gap:3px">
+        <label style="font-size:10px;font-weight:600;color:#aaa;text-transform:uppercase;letter-spacing:.05em">GitHub Token (manager only)</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="password" id="gh-token-input" placeholder="Paste your GitHub token here" style="width:280px;font-size:12px;letter-spacing:.05em"
+            oninput="sessionStorage.setItem('cookma_gh_token',this.value)">
+          <span id="token-status" style="font-size:11px;color:#aaa"></span>
+        </div>
+      </div>
       <button class="btn-primary" onclick="saveToGitHub()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
         Save &amp; Publish
@@ -293,7 +301,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:#009775;cursor:pointer}
 
 <script>
 /* ══ CONFIG ══ */
-const GITHUB_TOKEN  = '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';
+const GITHUB_TOKEN  = sessionStorage.getItem('cookma_gh_token')||'';
 const GITHUB_REPO   = 'merchgolf/cookma-commission-tracker';
 const GITHUB_FILE   = 'CookMA_Commission_Tracker_2026.html';
 const GITHUB_BRANCH = 'main';
@@ -434,6 +442,12 @@ function showTab(tab,btn){
 
 /* ══ GITHUB SAVE ══ */
 async function saveToGitHub(){
+  const token=sessionStorage.getItem('cookma_gh_token')||'';
+  if(!token){
+    alert('Please paste your GitHub token into the field above before saving.');
+    document.getElementById('gh-token-input').focus();
+    return;
+  }
   setSyncStatus('saving','Saving…');
   try{
     const data={people,nextId,managerPin};
@@ -441,7 +455,7 @@ async function saveToGitHub(){
 
     // Get current file metadata (SHA + download URL)
     const metaResp=await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE}?ref=${GITHUB_BRANCH}`,{
-      headers:{'Authorization':'token '+GITHUB_TOKEN,'Accept':'application/vnd.github.v3+json'}
+      headers:{'Authorization':'token '+token,'Accept':'application/vnd.github.v3+json'}
     });
     if(!metaResp.ok) throw new Error('Could not read file from GitHub: '+metaResp.status);
     const meta=await metaResp.json();
@@ -472,7 +486,7 @@ async function saveToGitHub(){
     const encoded=btoa(unescape(encodeURIComponent(newContent)));
     const updateResp=await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/${GITHUB_FILE}`,{
       method:'PUT',
-      headers:{'Authorization':'token '+GITHUB_TOKEN,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
+      headers:{'Authorization':'token '+token,'Accept':'application/vnd.github.v3+json','Content-Type':'application/json'},
       body:JSON.stringify({message:'Update commission data',content:encoded,sha,branch:GITHUB_BRANCH})
     });
     if(!updateResp.ok){const e=await updateResp.text();throw new Error('GitHub write error: '+e);}
