@@ -265,7 +265,7 @@ input[type=checkbox]{width:15px;height:15px;accent-color:#009775;cursor:pointer}
       <div class="save-bar">
         <button class="btn-primary" onclick="saveToSharePoint()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          Save to SharePoint
+          Save to OneDrive
         </button>
         <button class="btn-primary" style="background:#00463F" onclick="exportCSV()">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -520,17 +520,23 @@ async function loadFromSharePoint(){
   try {
     if(SHARE_LINK){
       // Use Graph API shares endpoint — works for OneDrive for Business share links
-      // Encode the share URL to base64url as required by Graph API
       const base64 = btoa(SHARE_LINK)
         .replace(/=/g, '')
         .replace(/\+/g, '-')
         .replace(/\//g, '_');
       const sharesUrl = `https://graph.microsoft.com/v1.0/shares/u!${base64}/driveItem/content`;
+      console.log('Fetching share link via:', sharesUrl);
       const resp = await fetch(sharesUrl, {
         headers: { 'Authorization': 'Bearer ' + accessToken }
       });
-      if(!resp.ok) throw new Error('Share fetch failed: '+resp.status);
+      console.log('Share fetch response status:', resp.status);
+      if(!resp.ok){
+        const errText = await resp.text();
+        console.error('Share fetch error body:', errText);
+        throw new Error('Share fetch failed ('+resp.status+'): '+errText);
+      }
       const data = await resp.json();
+      console.log('Data loaded, people count:', (data.people||[]).length);
       people = data.people || [];
       nextId = data.nextId || people.length+1;
       managerPin = data.managerPin || DEFAULT_MGR_PIN;
@@ -560,8 +566,8 @@ async function loadFromSharePoint(){
       }
     }
   } catch(e) {
-    console.warn('Load error:', e);
-    showSplashError('Could not load data: '+e.message+'. Please contact your manager.');
+    console.error('Load error:', e);
+    alert('Could not load data file:\n\n' + e.message + '\n\nPlease screenshot this and send to your manager.');
     people = [{id:nextId++,name:'',pin:'',deals:[{desc:'',fees:0,retainer:0,retainerSplit:false}]}];
   }
 }
